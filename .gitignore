@@ -5,8 +5,12 @@
 .pub/
 build/
 
+
 # Android
 android/.gradle/
+android/app/debug/
+android/app/profile/
+android/app/release/
 android/local.properties
 *.keystore
 *.jks
@@ -21,3 +25,7 @@ ios/Flutter/Flutter.podspec
 .idea/
 .vscode/
 *.iml
+
+#Firebase
+*.keystore
+google-services.json
