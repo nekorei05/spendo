@@ -38,6 +38,9 @@ dependencies:
   csv: ^5.1.0
   share_plus: ^9.0.0
   fl_chart: ^0.63.0
+  sqflite: ^2.3.0
+  path_provider: ^2.0.14
+
 
 dev_dependencies:
   flutter_test:

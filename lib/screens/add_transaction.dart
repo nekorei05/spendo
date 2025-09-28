@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'db_helper.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   @override
@@ -144,8 +145,28 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   backgroundColor: primaryColor,
                   padding: EdgeInsets.symmetric(vertical: 14),
                 ),
-                onPressed: () {
-                  // Handle transaction submission here
+                onPressed: () async {
+                  final expense = {
+                    'amount': double.tryParse(_amountCtrl.text) ?? 0.0,
+                    'date': _dateTimeCtrl.text,
+                    'paidTo': _paidToCtrl.text,
+                    'mode': _modeCtrl.text,
+                    'category': _selectedCategory ?? 'Other',
+                  };
+
+                  await DBHelper.insertExpense(expense);
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Expense added successfully!')),
+                  );
+
+                  _amountCtrl.clear();
+                  _dateTimeCtrl.clear();
+                  _paidToCtrl.clear();
+                  _modeCtrl.clear();
+                  setState(() {
+                    _selectedCategory = null;
+                  });
                 },
                 child: Text('Add Expense', style: TextStyle(fontSize: 16)),
               ),

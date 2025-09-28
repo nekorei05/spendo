@@ -2,14 +2,46 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import 'login_screen.dart';
 import 'add_transaction.dart';
+import 'db_helper.dart';
+import 'package:intl/intl.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
+  @override
+  _HomeScreenState createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
   final Color primaryColor = Color(0xFF7345EE);
+  double _totalExpenses = 0.0;
+  List<Map<String, dynamic>> _recentExpenses = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboardData();
+  }
+
+  Future<void> _loadDashboardData() async {
+    final total = await DBHelper.getMonthlyTotalExpenses(); // only this month
+    final recent = await DBHelper.getRecentExpenses();
+    setState(() {
+      _totalExpenses = total;
+      _recentExpenses = recent;
+    });
+  }
+
+  String formatDate(String rawDate) {
+    final date = DateTime.tryParse(rawDate);
+    return date != null ? DateFormat('MMM d').format(date) : rawDate;
+  }
+
+  String getCurrentMonthYear() {
+    return DateFormat('MMMM yyyy').format(DateTime.now());
+  }
 
   @override
   Widget build(BuildContext context) {
     final user = AuthService.currentUser();
-
     final nameOrEmail = user?.displayName?.isNotEmpty == true
         ? user!.displayName
         : user?.email ?? user?.phoneNumber ?? 'User';
@@ -23,7 +55,7 @@ class HomeScreen extends StatelessWidget {
             CircleAvatar(
               backgroundImage: NetworkImage(
                 user?.photoURL ?? 'https://via.placeholder.com/150',
-              ), // Replace with actual image
+              ),
               radius: 20,
             ),
             SizedBox(width: 10),
@@ -34,7 +66,6 @@ class HomeScreen extends StatelessWidget {
                   nameOrEmail ?? '',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
-
                 Text(
                   'Welcome back',
                   style: TextStyle(fontSize: 12, color: Colors.white70),
@@ -80,7 +111,10 @@ class HomeScreen extends StatelessWidget {
                             ),
                           ),
                           SizedBox(height: 8),
-                          Text('September', style: TextStyle(fontSize: 16)),
+                          Text(
+                            getCurrentMonthYear(), // e.g. "September 2025"
+                            style: TextStyle(fontSize: 16),
+                          ),
                         ],
                       ),
                     ),
@@ -102,7 +136,10 @@ class HomeScreen extends StatelessWidget {
                             ),
                           ),
                           SizedBox(height: 8),
-                          Text('₹12,450.75', style: TextStyle(fontSize: 16)),
+                          Text(
+                            '₹${_totalExpenses.toStringAsFixed(2)}',
+                            style: TextStyle(fontSize: 16),
+                          ),
                         ],
                       ),
                     ),
@@ -113,23 +150,27 @@ class HomeScreen extends StatelessWidget {
             SizedBox(height: 20),
             // Recent Transactions
             Expanded(
-              child: ListView(
-                children: [
-                  ListTile(
-                    leading: Icon(Icons.shopping_cart, color: primaryColor),
-                    title: Text('Groceries'),
-                    subtitle: Text('₹1,200'),
-                    trailing: Text('Sep 24'),
-                  ),
-                  ListTile(
-                    leading: Icon(Icons.local_gas_station, color: primaryColor),
-                    title: Text('Fuel'),
-                    subtitle: Text('₹2,000'),
-                    trailing: Text('Sep 23'),
-                  ),
-                  // Add more transactions here
-                ],
-              ),
+              child: _recentExpenses.isEmpty
+                  ? Center(child: Text('No transactions yet'))
+                  : ListView(
+                      children: _recentExpenses.map((expense) {
+                        return ListTile(
+                          leading: Icon(
+                            expense['type'] == 'income'
+                                ? Icons.arrow_downward
+                                : Icons.arrow_upward,
+                            color: expense['type'] == 'income'
+                                ? Colors.green
+                                : primaryColor,
+                          ),
+                          title: Text(expense['category']),
+                          subtitle: Text(
+                            '₹${expense['amount']} • ${expense['paidTo']}',
+                          ),
+                          trailing: Text(formatDate(expense['date'])),
+                        );
+                      }).toList(),
+                    ),
             ),
           ],
         ),
@@ -137,11 +178,12 @@ class HomeScreen extends StatelessWidget {
       floatingActionButton: FloatingActionButton(
         backgroundColor: primaryColor,
         child: Icon(Icons.add),
-        onPressed: () {
-          Navigator.push(
+        onPressed: () async {
+          await Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => AddTransactionScreen()),
           );
+          _loadDashboardData(); // Refresh after adding
         },
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
