@@ -4,6 +4,7 @@ import 'login_screen.dart';
 import 'add_transaction.dart';
 import 'db_helper.dart';
 import 'package:intl/intl.dart';
+import '../services/sms_service.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -18,6 +19,9 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    // Start reading SMS
+    final smsService = SmsService();
+    smsService.initSmsListener();
     _loadDashboardData();
   }
 
@@ -148,7 +152,24 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             SizedBox(height: 20),
-            // Recent Transactions
+            ElevatedButton.icon(
+              onPressed: () async {
+                final smsService = SmsService();
+                await smsService.importExistingSms();
+                await _loadDashboardData();
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text('SMS import complete')));
+              },
+              icon: Icon(Icons.sms),
+              label: Text('Import Existing SMS'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+              ),
+            ),
+            SizedBox(height: 16),
+
             Expanded(
               child: _recentExpenses.isEmpty
                   ? Center(child: Text('No transactions yet'))

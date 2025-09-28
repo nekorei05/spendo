@@ -40,6 +40,8 @@ dependencies:
   fl_chart: ^0.63.0
   sqflite: ^2.3.0
   path_provider: ^2.0.14
+  telephony: ^0.2.0
+  permission_handler: ^11.3.0
 
 
 dev_dependencies:
