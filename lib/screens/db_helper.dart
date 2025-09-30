@@ -146,4 +146,14 @@ class DBHelper {
     }
     return map;
   }
+
+  static Future<List<Map<String, dynamic>>>
+  getAllTransactionsForExport() async {
+    final db = await initDB(); // Use your existing initDB method
+    final result = await db.query(
+      'expenses', // Your table name
+      orderBy: 'date DESC',
+    );
+    return result;
+  }
 }

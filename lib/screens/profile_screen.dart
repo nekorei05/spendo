@@ -1,4 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:csv/csv.dart';
+import '../services/theme_provider.dart';
+import 'db_helper.dart';
 
 enum ExportFormat { pdf, csv }
 
@@ -9,7 +18,93 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   ExportFormat _selectedFormat = ExportFormat.pdf;
-  bool _isDarkTheme = false;
+
+  Future<void> _exportStatement() async {
+    final data = await DBHelper.getAllTransactionsForExport();
+
+    if (data.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("No transactions to export.")));
+      return;
+    }
+
+    if (_selectedFormat == ExportFormat.pdf) {
+      await _exportPDF(data);
+    } else {
+      await _exportCSV(data);
+    }
+  }
+
+  Future<void> _exportPDF(List<Map<String, dynamic>> data) async {
+    final pdf = pw.Document();
+
+    pdf.addPage(
+      pw.Page(
+        build: (context) {
+          return pw.Column(
+            children: [
+              pw.Text(
+                'Transaction Statement',
+                style: pw.TextStyle(
+                  fontSize: 24,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.SizedBox(height: 20),
+              pw.Table.fromTextArray(
+                headers: ['Date', 'Category', 'Amount', 'Type', 'Merchant'],
+                data: data.map((tx) {
+                  return [
+                    tx['date'],
+                    tx['category'],
+                    '₹${tx['amount'].toStringAsFixed(2)}',
+                    tx['type'],
+                    tx['paidTo'] ?? '',
+                  ];
+                }).toList(),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    // Use printing package to save or share the PDF
+    await Printing.sharePdf(bytes: await pdf.save(), filename: 'statement.pdf');
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('PDF exported successfully')));
+  }
+
+  Future<void> _exportCSV(List<Map<String, dynamic>> data) async {
+    List<List<dynamic>> rows = [];
+
+    rows.add(['Date', 'Category', 'Amount', 'Type', 'Merchant']);
+
+    for (var tx in data) {
+      rows.add([
+        tx['date'],
+        tx['category'],
+        tx['amount'].toString(),
+        tx['type'],
+        tx['paidTo'] ?? '',
+      ]);
+    }
+
+    String csvData = const ListToCsvConverter().convert(rows);
+
+    final directory = await getApplicationDocumentsDirectory();
+    final path = '${directory.path}/statement.csv';
+    final file = File(path);
+
+    await file.writeAsString(csvData);
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('CSV exported to $path')));
+  }
 
   void _showExportDialog() {
     showDialog(
@@ -60,13 +155,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: const Text("Export"),
               onPressed: () {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      "Exported as ${_selectedFormat == ExportFormat.pdf ? 'PDF' : 'CSV'}",
-                    ),
-                  ),
-                );
+                _exportStatement();
               },
             ),
           ],
@@ -75,31 +164,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _toggleTheme(bool value) {
-    setState(() {
-      _isDarkTheme = value;
-    });
-
-    // Theme toggling logic here if using Provider or similar
-    // For now this just updates local state
-  }
-
   @override
   Widget build(BuildContext context) {
     final primaryColor = const Color(0xFF7345EE);
+    final themeProvider = Provider.of<ThemeProvider>(context);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Profile'),
         backgroundColor: primaryColor,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () {
-              // Navigate to edit screen or show bottom sheet
-            },
-          ),
-        ],
       ),
       body: Column(
         children: [
@@ -129,9 +202,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ListTile(
             leading: const Icon(Icons.settings),
             title: const Text("Preferences"),
-            onTap: () {
-              // Navigate to preferences screen or show dialog
-            },
+            onTap: () {},
           ),
           ListTile(
             leading: const Icon(Icons.file_download),
@@ -141,8 +212,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           SwitchListTile(
             secondary: const Icon(Icons.brightness_6),
             title: const Text("Dark Theme"),
-            value: _isDarkTheme,
-            onChanged: _toggleTheme,
+            value: themeProvider.isDarkMode,
+            onChanged: (value) {
+              themeProvider.toggleTheme(value);
+            },
           ),
         ],
       ),
