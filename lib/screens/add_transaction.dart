@@ -152,8 +152,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     'paidTo': _paidToCtrl.text,
                     'mode': _modeCtrl.text,
                     'category': _selectedCategory ?? 'Other',
+                    'note': '',
+                    'type': 'expense',
                   };
-
                   await DBHelper.insertExpense(expense);
 
                   ScaffoldMessenger.of(context).showSnackBar(

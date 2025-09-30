@@ -4,64 +4,249 @@ import '../screens/db_helper.dart';
 
 class SmsService {
   final Telephony _telephony = Telephony.instance;
-  Future<void> initSmsListener() async {
-    bool granted = await _requestSmsPermission();
-    if (!granted) return;
+  SmsService();
+
+  // Ask SMS permission
+  Future<bool> _requestSmsPermission() async {
+    final status = await Permission.sms.request();
+    return status.isGranted;
+  }
+
+  // Listen for new SMS
+  Future<void> initSmsListener(Function onNewTransaction) async {
+    if (!await _requestSmsPermission()) return;
 
     _telephony.listenIncomingSms(
       onNewMessage: (SmsMessage message) {
-        _processSms(message);
+        _processSms(message, onNewTransaction);
       },
       onBackgroundMessage: _backgroundSmsHandler,
     );
   }
 
-  Future<void> importExistingSms() async {
-    final granted = await _requestSmsPermission();
-    if (!granted) return;
+  // Import all past SMS
+  Future<void> importExistingSms(Function onImported) async {
+    if (!await _requestSmsPermission()) return;
 
     final messages = await _telephony.getInboxSms(
       columns: [SmsColumn.ADDRESS, SmsColumn.BODY, SmsColumn.DATE],
     );
 
     for (final msg in messages) {
-      _processSms(msg);
+      await _processSms(msg, null); // no UI callback
     }
+
+    onImported();
   }
 
-  Future<bool> _requestSmsPermission() async {
-    final status = await Permission.sms.request();
-    return status.isGranted;
-  }
-
-  void _processSms(SmsMessage msg) {
+  // Process SMS → save to DB
+  Future<void> _processSms(SmsMessage msg, Function? onNewTransaction) async {
     final body = msg.body ?? '';
     final sender = msg.address ?? '';
     final timestamp = DateTime.fromMillisecondsSinceEpoch(msg.date ?? 0);
 
-    // Very simple example to extract amount using regex
-    final amountMatch = RegExp(r"₹\s?([\d,]+\.\d{2})").firstMatch(body);
-    if (amountMatch != null) {
-      final amountStr = amountMatch.group(1)!.replaceAll(',', '');
-      final amount = double.tryParse(amountStr);
+    final amount = _extractAmount(body);
+    if (amount != null) {
+      final merchant = _extractMerchant(msg.body ?? '', msg.address ?? '');
+      final type = _detectType(body);
+      final mode = _detectMode(body);
+      final category = _detectCategory(body, mode);
 
-      if (amount != null) {
-        final transaction = {
-          'amount': amount,
-          'date': timestamp.toIso8601String(),
-          'paidTo': sender,
-          'mode': 'SMS',
-          'category': 'Auto',
-          'note': body,
-          'type': 'expense',
-        };
-        DBHelper.insertExpense(transaction);
+      final transaction = {
+        'amount': amount,
+        'date': timestamp.toIso8601String(),
+        'paidTo': merchant,
+        'mode': mode,
+        'category': category,
+        'note': body,
+        'type': type,
+      };
+
+      final isDuplicate = await DBHelper.checkDuplicate(transaction);
+      if (!isDuplicate) {
+        await DBHelper.insertExpense(transaction);
+        if (onNewTransaction != null) onNewTransaction();
       }
     }
   }
-}
 
-// Required for background SMS
-void _backgroundSmsHandler(SmsMessage message) {
-  // You can log or queue for processing later
+  // Background SMS handler
+  static Future<void> _backgroundSmsHandler(SmsMessage message) async {
+    final body = message.body ?? '';
+    final timestamp = DateTime.fromMillisecondsSinceEpoch(message.date ?? 0);
+
+    final amount = _extractAmountStatic(body);
+    if (amount != null) {
+      final merchant = _extractMerchantStatic(
+        message.body ?? '',
+        message.address ?? '',
+      );
+      final type = _detectTypeStatic(body);
+      final mode = _detectModeStatic(body);
+      final category = _detectCategoryStatic(body, mode);
+
+      final transaction = {
+        'amount': amount,
+        'date': timestamp.toIso8601String(),
+        'paidTo': merchant,
+        'mode': mode,
+        'category': category,
+        'note': body,
+        'type': type,
+      };
+
+      final isDuplicate = await DBHelper.checkDuplicate(transaction);
+      if (!isDuplicate) await DBHelper.insertExpense(transaction);
+    }
+  }
+
+  // Amount extraction with regex
+  // Amount extraction with regex
+  double? _extractAmount(String body) {
+    final regex = RegExp(r'(₹|Rs\.?|INR)\s?([0-9,]+(\.[0-9]{1,2})?)');
+    final match = regex.firstMatch(body);
+    if (match != null) {
+      final numStr = match.group(2)!.replaceAll(',', '');
+      final value = double.tryParse(numStr);
+      if (value != null) {
+        return double.parse(value.toStringAsFixed(2)); // always 2 decimals
+      }
+    }
+    return null;
+  }
+
+  static double? _extractAmountStatic(String body) {
+    final regex = RegExp(r'(₹|Rs\.?|INR)\s?([0-9,]+(\.[0-9]{1,2})?)');
+    final match = regex.firstMatch(body);
+    if (match != null) {
+      final numStr = match.group(2)!.replaceAll(',', '');
+      final value = double.tryParse(numStr);
+      if (value != null) {
+        return double.parse(value.toStringAsFixed(2));
+      }
+    }
+    return null;
+  }
+
+  // Merchant extraction
+  String? _extractMerchant(String body, String sender) {
+    final keywords = ['at', 'to', 'via', 'on', 'with', 'by'];
+    for (var kw in keywords) {
+      final pattern = RegExp(r'\b' + kw + r'\s+([A-Za-z&\-\s]{2,20})');
+      final match = pattern.firstMatch(body.toLowerCase());
+      if (match != null) {
+        var merchant = match.group(1)?.trim();
+        if (merchant != null) {
+          merchant = merchant
+              .split(' ')
+              .take(2)
+              .join(' '); // only first 2 words
+          // Capitalize first letter
+          return merchant[0].toUpperCase() + merchant.substring(1);
+        }
+      }
+    }
+
+    // If UPI handle present → use before '@'
+    final upiRegex = RegExp(r'[\w\.\-]+@[\w]+');
+    final upiMatch = upiRegex.firstMatch(body);
+    if (upiMatch != null) {
+      return upiMatch.group(0)!.split('@')[0];
+    }
+
+    // Fallback to sender if nothing found
+    return sender;
+  }
+
+  static String? _extractMerchantStatic(String body, String sender) {
+    final keywords = ['at', 'to', 'via', 'on', 'with', 'by'];
+    for (var kw in keywords) {
+      final pattern = RegExp(r'\b' + kw + r'\s+([A-Za-z&\-\s]{2,20})');
+      final match = pattern.firstMatch(body.toLowerCase());
+      if (match != null) {
+        var merchant = match.group(1)?.trim();
+        if (merchant != null) {
+          merchant = merchant.split(' ').take(2).join(' ');
+          return merchant[0].toUpperCase() + merchant.substring(1);
+        }
+      }
+    }
+
+    final upiRegex = RegExp(r'[\w\.\-]+@[\w]+');
+    final upiMatch = upiRegex.firstMatch(body);
+    if (upiMatch != null) {
+      return upiMatch.group(0)!.split('@')[0];
+    }
+
+    return sender;
+  }
+
+  // Detect mode
+  String _detectMode(String body) {
+    final lower = body.toLowerCase();
+    if (lower.contains("upi")) return "UPI";
+    if (lower.contains("card")) return "Card";
+    if (lower.contains("atm")) return "ATM";
+    if (lower.contains("cash")) return "Cash";
+    return "Other";
+  }
+
+  static String _detectModeStatic(String body) {
+    final lower = body.toLowerCase();
+    if (lower.contains("upi")) return "UPI";
+    if (lower.contains("card")) return "Card";
+    if (lower.contains("atm")) return "ATM";
+    if (lower.contains("cash")) return "Cash";
+    return "Other";
+  }
+
+  // Detect type (income or expense)
+  String _detectType(String body) {
+    final lower = body.toLowerCase();
+    if (lower.contains("credited") ||
+        lower.contains("received") ||
+        lower.contains("deposit")) {
+      return "income";
+    }
+    return "expense";
+  }
+
+  static String _detectTypeStatic(String body) {
+    final lower = body.toLowerCase();
+    if (lower.contains("credited") ||
+        lower.contains("received") ||
+        lower.contains("deposit")) {
+      return "income";
+    }
+    return "expense";
+  }
+
+  // Detect category
+  String _detectCategory(String body, String mode) {
+    final lower = body.toLowerCase();
+    if (mode == "UPI") return "UPI";
+    if (mode == "Card") return "Card Payment";
+    if (lower.contains("atm")) return "ATM Withdrawal";
+    if (lower.contains("salary") || lower.contains("credited")) return "Salary";
+    if (lower.contains("bill")) return "Bills";
+    if (lower.contains("travel") ||
+        lower.contains("bus") ||
+        lower.contains("train"))
+      return "Travel";
+    return "Other";
+  }
+
+  static String _detectCategoryStatic(String body, String mode) {
+    final lower = body.toLowerCase();
+    if (mode == "UPI") return "UPI";
+    if (mode == "Card") return "Card Payment";
+    if (lower.contains("atm")) return "ATM Withdrawal";
+    if (lower.contains("salary") || lower.contains("credited")) return "Salary";
+    if (lower.contains("bill")) return "Bills";
+    if (lower.contains("travel") ||
+        lower.contains("bus") ||
+        lower.contains("train"))
+      return "Travel";
+    return "Other";
+  }
 }

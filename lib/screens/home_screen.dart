@@ -3,8 +3,10 @@ import '../services/auth_service.dart';
 import 'login_screen.dart';
 import 'add_transaction.dart';
 import 'db_helper.dart';
+import 'insights_screen.dart'; // Import the insights screen
 import 'package:intl/intl.dart';
 import '../services/sms_service.dart';
+import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -19,9 +21,12 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Start reading SMS
     final smsService = SmsService();
-    smsService.initSmsListener();
+
+    smsService.initSmsListener(() {
+      _loadDashboardData();
+    });
+
     _loadDashboardData();
   }
 
@@ -56,11 +61,19 @@ class _HomeScreenState extends State<HomeScreen> {
         elevation: 0,
         title: Row(
           children: [
-            CircleAvatar(
-              backgroundImage: NetworkImage(
-                user?.photoURL ?? 'https://via.placeholder.com/150',
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => ProfileScreen()),
+                );
+              },
+              child: CircleAvatar(
+                backgroundImage: NetworkImage(
+                  user?.photoURL ?? 'https://via.placeholder.com/150',
+                ),
+                radius: 20,
               ),
-              radius: 20,
             ),
             SizedBox(width: 10),
             Column(
@@ -116,7 +129,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           SizedBox(height: 8),
                           Text(
-                            getCurrentMonthYear(), // e.g. "September 2025"
+                            getCurrentMonthYear(),
                             style: TextStyle(fontSize: 16),
                           ),
                         ],
@@ -155,8 +168,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ElevatedButton.icon(
               onPressed: () async {
                 final smsService = SmsService();
-                await smsService.importExistingSms();
-                await _loadDashboardData();
+                await smsService.importExistingSms(() {
+                  _loadDashboardData();
+                });
                 ScaffoldMessenger.of(
                   context,
                 ).showSnackBar(SnackBar(content: Text('SMS import complete')));
@@ -169,7 +183,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             SizedBox(height: 16),
-
             Expanded(
               child: _recentExpenses.isEmpty
                   ? Center(child: Text('No transactions yet'))
@@ -184,11 +197,31 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ? Colors.green
                                 : primaryColor,
                           ),
-                          title: Text(expense['category']),
-                          subtitle: Text(
-                            '₹${expense['amount']} • ${expense['paidTo']}',
+                          title: Text(
+                            expense['paidTo'] ?? 'Unknown',
+                            style: TextStyle(fontWeight: FontWeight.bold),
                           ),
-                          trailing: Text(formatDate(expense['date'])),
+                          subtitle: Text(
+                            '${expense['category']} • ₹${(expense['amount'] as double).toStringAsFixed(2)}',
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(formatDate(expense['date'])),
+                              IconButton(
+                                icon: Icon(Icons.delete, color: Colors.red),
+                                onPressed: () async {
+                                  await DBHelper.deleteExpense(expense['id']);
+                                  await _loadDashboardData();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Transaction deleted'),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
                         );
                       }).toList(),
                     ),
@@ -222,7 +255,12 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               IconButton(
                 icon: Icon(Icons.insights, color: primaryColor),
-                onPressed: () {},
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => InsightsScreen()),
+                  );
+                },
               ),
             ],
           ),
