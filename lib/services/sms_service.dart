@@ -1,6 +1,7 @@
 import 'package:telephony/telephony.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../screens/db_helper.dart';
+import 'notification_service.dart';
 
 class SmsService {
   final Telephony _telephony = Telephony.instance;
@@ -47,7 +48,7 @@ class SmsService {
 
     final amount = _extractAmount(body);
     if (amount != null) {
-      final merchant = _extractMerchant(msg.body ?? '', msg.address ?? '');
+      final merchant = _extractMerchant(body, sender);
       final type = _detectType(body);
       final mode = _detectMode(body);
       final category = _detectCategory(body, mode);
@@ -65,7 +66,16 @@ class SmsService {
       final isDuplicate = await DBHelper.checkDuplicate(transaction);
       if (!isDuplicate) {
         await DBHelper.insertExpense(transaction);
-        if (onNewTransaction != null) onNewTransaction();
+
+        if (onNewTransaction != null) {
+          onNewTransaction();
+
+          // Add notification here if you prefer:
+          NotificationService.showNotification(
+            type == 'income' ? 'Income Received' : 'Expense Recorded',
+            '₹$amount at ${merchant ?? 'Unknown'}',
+          );
+        }
       }
     }
   }

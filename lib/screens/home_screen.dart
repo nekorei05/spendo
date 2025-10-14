@@ -3,10 +3,12 @@ import '../services/auth_service.dart';
 import 'login_screen.dart';
 import 'add_transaction.dart';
 import 'db_helper.dart';
-import 'insights_screen.dart'; // Import the insights screen
+import 'insights_screen.dart';
 import 'package:intl/intl.dart';
 import '../services/sms_service.dart';
 import 'profile_screen.dart';
+import '../services/notification_service.dart';
+import 'notifications_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -17,6 +19,14 @@ class _HomeScreenState extends State<HomeScreen> {
   final Color primaryColor = Color(0xFF7345EE);
   double _totalExpenses = 0.0;
   List<Map<String, dynamic>> _recentExpenses = [];
+
+  final List<String> financeTips = [
+    "Set a monthly budget and stick to it!",
+    "Track your daily expenses to avoid overspending.",
+    "Avoid impulse buys — wait 24 hours before spending on non-essentials.",
+    "Review your transactions weekly.",
+    "Set saving goals and automate your savings.",
+  ];
 
   @override
   void initState() {
@@ -31,7 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadDashboardData() async {
-    final total = await DBHelper.getMonthlyTotalExpenses(); // only this month
+    final total = await DBHelper.getMonthlyTotalExpenses();
     final recent = await DBHelper.getRecentExpenses();
     setState(() {
       _totalExpenses = total;
@@ -46,6 +56,46 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String getCurrentMonthYear() {
     return DateFormat('MMMM yyyy').format(DateTime.now());
+  }
+
+  Widget buildFinanceTipCards() {
+    return SizedBox(
+      height: 120,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: financeTips.length,
+        separatorBuilder: (_, __) => SizedBox(width: 12),
+        itemBuilder: (_, index) {
+          return Card(
+            color: Colors.purple.shade50,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            elevation: 2,
+            child: Container(
+              width: 260,
+              padding: EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Icon(Icons.lightbulb, color: Colors.deepPurple, size: 28),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      financeTips[index],
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                        color: Colors.deepPurple,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -92,7 +142,15 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         actions: [
-          IconButton(icon: Icon(Icons.notifications), onPressed: () {}),
+          IconButton(
+            icon: Icon(Icons.notifications),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => NotificationsScreen()),
+              );
+            },
+          ),
           IconButton(
             icon: Icon(Icons.logout),
             onPressed: () async {
@@ -110,7 +168,7 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // Summary Cards
+            // Monthly + Total Expense Cards
             Row(
               children: [
                 Expanded(
@@ -164,7 +222,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
+
             SizedBox(height: 20),
+
+            // Import SMS Button
             ElevatedButton.icon(
               onPressed: () async {
                 final smsService = SmsService();
@@ -182,7 +243,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 foregroundColor: Colors.white,
               ),
             ),
+
             SizedBox(height: 16),
+
+            // Finance Tip Cards (NEW!)
+            buildFinanceTipCards(),
+
+            SizedBox(height: 16),
+
+            // Recent Expenses List
             Expanded(
               child: _recentExpenses.isEmpty
                   ? Center(child: Text('No transactions yet'))
@@ -237,7 +306,7 @@ class _HomeScreenState extends State<HomeScreen> {
             context,
             MaterialPageRoute(builder: (_) => AddTransactionScreen()),
           );
-          _loadDashboardData(); // Refresh after adding
+          _loadDashboardData();
         },
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,

@@ -7,10 +7,14 @@ import 'screens/onboarding_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'services/theme_provider.dart';
+import 'services/notification_service.dart'; // 👈 Import this
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+
+  await NotificationService.init(); // 👈 Initialize notifications
+
   runApp(
     ChangeNotifierProvider(create: (_) => ThemeProvider(), child: MyApp()),
   );
@@ -36,7 +40,7 @@ class MyApp extends StatelessWidget {
         ),
       ),
       themeMode: themeProvider.mode,
-      home: AuthGate(), // 👈 This decides which screen to show
+      home: AuthGate(),
     );
   }
 }
@@ -48,18 +52,15 @@ class AuthGate extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-        // While checking the auth state
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Scaffold(body: Center(child: CircularProgressIndicator()));
         }
 
-        // If user is logged in
         if (snapshot.hasData) {
           return HomeScreen();
         }
 
-        // If user is NOT logged in
-        return OnboardingScreen(); // or LoginScreen if you prefer
+        return OnboardingScreen(); // Or LoginScreen
       },
     );
   }
