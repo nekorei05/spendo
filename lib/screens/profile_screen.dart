@@ -8,6 +8,8 @@ import 'package:printing/printing.dart';
 import 'package:csv/csv.dart';
 import '../services/theme_provider.dart';
 import 'db_helper.dart';
+import 'package:intl/intl.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 enum ExportFormat { pdf, csv }
 
@@ -36,58 +38,120 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // ✅ For PDF export
+
   Future<void> _exportPDF(List<Map<String, dynamic>> data) async {
     final pdf = pw.Document();
 
+    // Get current Firebase user
+    final user = FirebaseAuth.instance.currentUser;
+    final name = user?.displayName ?? "User";
+    final contact = user?.phoneNumber ?? user?.email ?? "Not Provided";
+
+    // Calculate total expenses
+    final totalAmount = data.fold<double>(
+      0.0,
+      (sum, tx) => sum + (tx['amount'] ?? 0.0),
+    );
+
     pdf.addPage(
-      pw.Page(
-        build: (context) {
-          return pw.Column(
-            children: [
-              pw.Text(
-                'Transaction Statement',
-                style: pw.TextStyle(
-                  fontSize: 24,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-              ),
-              pw.SizedBox(height: 20),
-              pw.Table.fromTextArray(
-                headers: ['Date', 'Category', 'Amount', 'Type', 'Merchant'],
-                data: data.map((tx) {
-                  return [
-                    tx['date'],
-                    tx['category'],
-                    '₹${tx['amount'].toStringAsFixed(2)}',
-                    tx['type'],
-                    tx['paidTo'] ?? '',
-                  ];
-                }).toList(),
-              ),
-            ],
-          );
-        },
+      pw.MultiPage(
+        build: (context) => [
+          // Title
+          pw.Center(
+            child: pw.Text(
+              'Expense Report',
+              style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+            ),
+          ),
+          pw.SizedBox(height: 10),
+
+          // User Info Section
+          pw.Text("Name: $name"),
+          pw.Text("Contact: $contact"),
+          pw.Text("Total Spent: ${totalAmount.toStringAsFixed(2)}"),
+          pw.SizedBox(height: 20),
+
+          // Transaction Table
+          pw.Table.fromTextArray(
+            headers: ['Date', 'Category', 'Amount', 'Type', 'Merchant'],
+            data: data.map((tx) {
+              String dateStr = tx['date'].toString();
+              String formattedDate;
+
+              try {
+                final parsed = DateTime.tryParse(dateStr);
+                if (parsed != null) {
+                  formattedDate =
+                      "${parsed.day}-${parsed.month}-${parsed.year}";
+                } else {
+                  formattedDate = dateStr;
+                }
+              } catch (_) {
+                formattedDate = dateStr;
+              }
+
+              return [
+                formattedDate,
+                tx['category'] ?? 'Other',
+                tx['amount'].toStringAsFixed(2),
+                tx['type'] ?? '',
+                tx['paidTo'] ?? '',
+              ];
+            }).toList(),
+            headerStyle: pw.TextStyle(
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.white,
+            ),
+            headerDecoration: pw.BoxDecoration(color: PdfColors.deepPurple),
+            cellAlignment: pw.Alignment.centerLeft,
+            border: pw.TableBorder.all(color: PdfColors.grey),
+            cellStyle: const pw.TextStyle(fontSize: 10),
+          ),
+        ],
       ),
     );
 
-    // Use printing package to save or share the PDF
-    await Printing.sharePdf(bytes: await pdf.save(), filename: 'statement.pdf');
+    // Save/share PDF
+    await Printing.sharePdf(
+      bytes: await pdf.save(),
+      filename: 'Spendo_Report.pdf',
+    );
 
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text('PDF exported successfully')));
+    ).showSnackBar(const SnackBar(content: Text('PDF exported successfully')));
   }
 
+  // ✅ For csv export
   Future<void> _exportCSV(List<Map<String, dynamic>> data) async {
+    // Get user info
+    final user = FirebaseAuth.instance.currentUser;
+    final name = user?.displayName ?? "User";
+    final contact = user?.phoneNumber ?? user?.email ?? "Not Provided";
+
+    // Calculate total expenses
+    final totalAmount = data.fold<double>(
+      0.0,
+      (sum, tx) => sum + (tx['amount'] ?? 0.0),
+    );
+
     List<List<dynamic>> rows = [];
 
+    // Header section
+    rows.add(["Expense Report"]);
+    rows.add(["Name", name]);
+    rows.add(["Contact", contact]);
+    rows.add(["Total Spent", totalAmount.toStringAsFixed(2)]);
+    rows.add([]); // empty line
     rows.add(['Date', 'Category', 'Amount', 'Type', 'Merchant']);
 
+    // Add transactions
     for (var tx in data) {
       rows.add([
         tx['date'],
         tx['category'],
-        tx['amount'].toString(),
+        tx['amount'].toStringAsFixed(2),
         tx['type'],
         tx['paidTo'] ?? '',
       ]);
@@ -95,10 +159,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     String csvData = const ListToCsvConverter().convert(rows);
 
-    final directory = await getApplicationDocumentsDirectory();
-    final path = '${directory.path}/statement.csv';
-    final file = File(path);
+    // Save to Downloads folder for easier access
+    Directory? downloadsDir;
+    if (Platform.isAndroid) {
+      downloadsDir = Directory('/storage/emulated/0/Download');
+    } else {
+      downloadsDir = await getDownloadsDirectory();
+    }
 
+    final path = '${downloadsDir!.path}/Spendo_Report.csv';
+    final file = File(path);
     await file.writeAsString(csvData);
 
     ScaffoldMessenger.of(
@@ -106,6 +176,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ).showSnackBar(SnackBar(content: Text('CSV exported to $path')));
   }
 
+  // Export options
   void _showExportDialog() {
     showDialog(
       context: context,

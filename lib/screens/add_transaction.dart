@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'db_helper.dart';
+import 'package:intl/intl.dart'; // ✅ Added for formatting dates
 
 class AddTransactionScreen extends StatefulWidget {
   @override
@@ -23,6 +24,26 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     'Other',
   ];
 
+  DateTime? _selectedDate; // ✅ Store selected date internally
+
+  // ✅ Pick date using a date picker instead of free text
+  Future<void> _pickDate() async {
+    final DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+
+    if (pickedDate != null) {
+      setState(() {
+        _selectedDate = pickedDate;
+        // Display readable date in TextField
+        _dateTimeCtrl.text = DateFormat('dd MMM yyyy').format(pickedDate);
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -34,7 +55,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // Title
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
@@ -48,7 +68,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             ),
             SizedBox(height: 16),
 
-            // Main Input Box
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -67,14 +86,20 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     ),
                   ),
                   SizedBox(height: 12),
+
+                  // ✅ Date field (read-only, opens date picker)
                   TextField(
                     controller: _dateTimeCtrl,
+                    readOnly: true,
+                    onTap: _pickDate, // open date picker
                     decoration: InputDecoration(
-                      hintText: 'Date and Time',
+                      hintText: 'Select Date',
                       border: OutlineInputBorder(),
+                      suffixIcon: Icon(Icons.calendar_today),
                     ),
                   ),
                   SizedBox(height: 12),
+
                   TextField(
                     controller: _paidToCtrl,
                     decoration: InputDecoration(
@@ -96,7 +121,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
             SizedBox(height: 20),
 
-            // Category Dropdown
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
@@ -137,7 +161,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
             SizedBox(height: 30),
 
-            // Add Expense Button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -146,9 +169,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   padding: EdgeInsets.symmetric(vertical: 14),
                 ),
                 onPressed: () async {
+                  // ✅ Save ISO date if available
+                  String isoDate = _selectedDate != null
+                      ? _selectedDate!.toIso8601String()
+                      : DateTime.now().toIso8601String();
+
                   final expense = {
                     'amount': double.tryParse(_amountCtrl.text) ?? 0.0,
-                    'date': _dateTimeCtrl.text,
+                    'date': isoDate, // ✅ Uniform ISO date format
                     'paidTo': _paidToCtrl.text,
                     'mode': _modeCtrl.text,
                     'category': _selectedCategory ?? 'Other',
@@ -167,6 +195,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   _modeCtrl.clear();
                   setState(() {
                     _selectedCategory = null;
+                    _selectedDate = null;
                   });
                 },
                 child: Text('Add Expense', style: TextStyle(fontSize: 16)),
