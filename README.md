@@ -17,15 +17,11 @@ Features
 
 ## My App Screenshots 📱
 
+
 Dashboard | Export | Add | Insights  
 --- | --- | --- | --- 
-<img src="./images/dashboard.jpeg" width="200"/> | 
-<img src="./images/export.jpeg" width="200"/> | 
-<img src="./images/add.jpeg" width="200"/> | 
-<p align="center">
-  <img src="./images/pie.jpeg" width="140" />
-  <img src="./images/bar.jpeg" width="140" />
-</p>
+<img src="./images/dashboard.jpeg" width="200"/> | <img src="./images/export.jpeg" width="200"/> | <img src="./images/add.jpeg" width="200"/> | <img src="./images/pie.jpeg" width="130"/> <img src="./images/bar.jpeg" width="130"/>
+
 
 **Getting Started**
 
