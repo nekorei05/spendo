@@ -15,17 +15,17 @@ Features
 •	**Data Persistence:** Store expenses locally using SQLite or Firebase (depending on your setup).
 
 
-
 ## My App Screenshots 📱
 
-Dashboard | Export | Expense | Details | Add  
---- | --- | --- |--- |--- 
-![](./images/dashboard.jpeg) | 
-![](./images/export.jpeg) | 
-![](./images/expense.png) | 
-![](./images/details.png) | 
-![](./images/add.png)
-
+Dashboard | Export | Add | Insights  
+--- | --- | --- | --- 
+<img src="./images/dashboard.jpeg" width="200"/> | 
+<img src="./images/export.jpeg" width="200"/> | 
+<img src="./images/add.png" width="200"/> | 
+<p align="center">
+  <img src="./images/pie.png" width="140" />
+  <img src="./images/bar.png" width="140" />
+</p>
 
 **Getting Started**
 
