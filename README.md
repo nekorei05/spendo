@@ -1,6 +1,6 @@
-Spendo 💸
+## Spendo 💸
 
-Spendo is a modern, easy-to-use expense tracker app built with Flutter. It helps users manage their finances, track daily expenses, and analyze spending patterns in a simple and intuitive interface.
+Spendo is a modern, easy-to-use expense tracker app built with Flutter. It helps users manage their finances, track daily expenses and analyze spending patterns in a simple and intuitive interface.
 
 Features
 
