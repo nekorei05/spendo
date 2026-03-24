@@ -60,9 +60,11 @@ Tech Stack
 
 •	Frontend: Flutter & Dart
 
-•	Database: SQLite / Firebase (for cloud sync, optional)
+• Authentication: Firebase Authentication (Email/Password or Social Login)
 
-•	State Management: Provider / Riverpod / GetX (depending on your setup)
+•	Local Database: SQLite (for storing expenses & categories locally)
+
+•	State Management: Provider 
 ________________________________________
 Contributing
 
