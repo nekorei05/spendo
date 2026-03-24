@@ -38,20 +38,23 @@ _Prerequisites_
 Installation
 
 1.	Clone the repository:
-   
+ ```bash  
 git clone https://github.com/yourusername/spendo.git
-
+```
 2.	Navigate to the project folder:
-   
+```bash 
 cd spendo
-
+```
 3.	Install dependencies:
-   
-flutter pub get
+```bash 
 
+flutter pub get
+```
 4.	Run the app:
+```bash 
 
 flutter run
+```
 ________________________________________
 Tech Stack
 
