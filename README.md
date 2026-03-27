@@ -58,7 +58,7 @@ flutter run
 ________________________________________
 Tech Stack
 
-•	Frontend: Flutter & Dart
+•	Frontend: Flutter & Dart.
 
 • Authentication: Firebase Authentication (Email/Password or Social Login)
 
